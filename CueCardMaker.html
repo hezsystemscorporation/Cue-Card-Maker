@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cue Card Maker - By Michael Hertz HE Xin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Import JSZip Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Import SortableJS Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <style>
+        /* Hide elements when printing */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #print-area, #print-area * {
+                visibility: visible;
+            }
+            #print-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            .no-print {
+                display: none !important;
+            }
+            /* A4 Portrait */
+            @page {
+                size: A4 portrait;
+                margin: 0;
+            }
+            /* Page Break */
+            .page-break {
+                page-break-after: always;
+                clear: both;
+            }
+            
+            /* A4 Portrait Page */
+            .portrait-page {
+                width: 210mm; /* A4 width in portrait */
+                height: 297mm; /* A4 height */
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                margin: 0 auto;
+                page-break-inside: avoid;
+                page-break-after: always;
+                background-color: white;
+            }
+            
+            /* Mini Sheet */
+            .mini-sheet {
+                width: 100%;
+                height: 33.3333%;
+                display: flex;
+                flex-direction: row;
+                border-bottom: 1px dashed #999; /* Horizontal cutting line */
+                box-sizing: border-box;
+            }
+            .mini-sheet:last-child {
+                border-bottom: none;
+            }
+
+            .print-half-page {
+                width: 50%;
+                height: 100%;
+                padding: 8mm; /* Fixed padding for print area */
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                position: relative;
+                overflow: hidden;
+            }
+
+            /* Middle line for folding */
+            .print-half-page:first-child {
+                border-right: 1px dashed #ccc;
+            }
+
+            .slide-img {
+                max-width: 100%;
+                max-height: 90%;
+                object-fit: contain;
+                border: 1px solid #eee;
+            }
+
+            .script-text {
+                width: 100%;
+                height: 100%;
+                font-size: 11pt; /* font size */
+                line-height: 1.4;
+                white-space: pre-wrap;
+                overflow: hidden;
+            }
+            
+            .page-number {
+                position: absolute;
+                bottom: 3mm;
+                font-size: 8pt;
+                color: #999;
+                font-family: monospace;
+            }
+        }
+
+        /* UI Styles */
+        body { background-color: #f3f4f6; }
+        .slide-item { transition: all 0.2s; }
+        .slide-item:hover { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        /* Drag Handle Styles */
+        .drag-handle { cursor: grab; }
+        .drag-handle:active { cursor: grabbing; }
+        /* SortableJS Ghost Styles */
+        .sortable-ghost { opacity: 0.4; background-color: #e5e7eb; border: 2px dashed #9ca3af; }
+    </style>
+</head>
+<body class="text-gray-800 font-sans h-screen flex flex-col overflow-hidden">
+
+    <header class="bg-white shadow-sm z-10 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center">
+                    <i class="fas fa-book-open text-indigo-600 text-2xl mr-3"></i>
+                    <h1 class="text-xl font-bold text-gray-900">Cue Card Maker</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="add-btn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <i class="fas fa-plus mr-2"></i> Add Page
+                    </button>
+                    <button id="import-folder-btn" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <i class="fas fa-folder-open mr-2"></i> Import Folder
+                    </button>
+                    <button id="export-json-btn" class="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                        <i class="fas fa-download mr-1"></i> Export Data
+                    </button>
+                    <button id="import-json-btn" class="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                        <i class="fas fa-upload mr-1"></i> Import Data
+                    </button>
+                    <button id="preview-print-btn" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <i class="fas fa-print mr-2"></i> Preview/Print Brochure
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 no-print">
+        <div class="max-w-5xl mx-auto">
+            
+            <!-- Hidden Input for Folder Import -->
+            <input type="file" id="folder-input" webkitdirectory directory multiple class="hidden">
+            <!-- Hidden Input for ZIP Import -->
+            <input type="file" id="zip-input" accept=".zip" class="hidden">
+
+            <!-- Cover Settings -->
+            <div class="bg-white rounded-lg shadow mb-8 p-6">
+                <h2 class="text-lg font-medium text-gray-900 mb-4 border-b pb-2">Cover Settings</h2>
+                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div>
+                        <label for="cover-title" class="block text-sm font-medium text-gray-700">Brochure Title</label>
+                        <input type="text" id="cover-title" placeholder="e.g., 2026 Q1 Summary Report Presentation" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="cover-author" class="block text-sm font-medium text-gray-700">Author/Presenter</label>
+                        <input type="text" id="cover-author" placeholder="Your Name" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manual -->
+            <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-8">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-info-circle text-blue-400"></i>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm text-blue-700">
+                            <strong>Layout and Binding Instructions:</strong><br>
+                            1. When printing, please select <strong>"Double-sided Printing (Flip on long edge)"</strong> and set the paper size to <strong>A4 Portrait</strong>.<br>
+                            2. After printing on A4 paper, cut the paper along the horizontal dashed lines to create 3 strips.<br>
+                            3. Place the strip containing the "Cover" at the bottom (cover side down), and stack the remaining strips in print order.<br>
+                            4. Finally, fold in the middle to bind into a small booklet with the left pages as PPT slides and the right pages as speaker notes!
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Batch Operation Bar -->
+            <div class="mb-4 flex justify-between items-center bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                <div class="flex items-center">
+                    <input type="checkbox" id="select-all-cb" class="mr-2 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer">
+                    <label for="select-all-cb" class="text-sm text-gray-700 font-medium cursor-pointer">Select All</label>
+                </div>
+                <div class="space-x-2">
+                    <button id="delete-selected-btn" class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        <i class="fas fa-trash-alt mr-1"></i> Delete Selected
+                    </button>
+                    <button id="clear-all-btn" class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-bomb mr-1"></i> Clear All
+                    </button>
+                </div>
+            </div>
+
+            <!-- Slide List Container -->
+            <div id="slides-container" class="space-y-6 pb-20">
+                <!-- Dynamically generated slide edit blocks will be placed here -->
+            </div>
+
+        </div>
+    </main>
+
+    <footer class="bg-white border-t border-gray-200 py-4 no-print mt-auto">
+        <div class="max-w-5xl mx-auto px-4 text-center">
+            <p class="text-sm text-gray-500">&copy; Copyright 2026 Michael Hertz @ HEZ Group. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <div id="print-area" class="hidden">
+        <!-- Print content will be generated by JS -->
+    </div>
+
+    <script>
+        let slideData = []; // Array for slides storage { id, imageSrc, scriptText, fileName }
+
+        const container = document.getElementById('slides-container');
+        const addBtn = document.getElementById('add-btn');
+        const printBtn = document.getElementById('preview-print-btn');
+        
+        const coverTitleInput = document.getElementById('cover-title');
+        const coverAuthorInput = document.getElementById('cover-author');
+        const importFolderBtn = document.getElementById('import-folder-btn');
+        const folderInput = document.getElementById('folder-input');
+        const exportJsonBtn = document.getElementById('export-json-btn');
+        const importJsonBtn = document.getElementById('import-json-btn');
+        const zipInput = document.getElementById('zip-input'); // Rename variable to zipInput
+        const selectAllCb = document.getElementById('select-all-cb');
+        const deleteSelectedBtn = document.getElementById('delete-selected-btn');
+        const clearAllBtn = document.getElementById('clear-all-btn');
+
+        function updateBatchUI() {
+            const checkboxes = container.querySelectorAll('.slide-checkbox');
+            const checkedBoxes = container.querySelectorAll('.slide-checkbox:checked');
+            
+            if (checkboxes.length === 0) {
+                selectAllCb.checked = false;
+                selectAllCb.disabled = true;
+                deleteSelectedBtn.disabled = true;
+                clearAllBtn.disabled = true;
+            } else {
+                selectAllCb.disabled = false;
+                clearAllBtn.disabled = false;
+                selectAllCb.checked = (checkboxes.length === checkedBoxes.length);
+                deleteSelectedBtn.disabled = checkedBoxes.length === 0;
+            }
+        }
+
+        // Save data to localStorage
+        function saveData() {
+            const dataToSave = {
+                title: coverTitleInput.value,
+                author: coverAuthorInput.value,
+                slides: slideData
+            };
+            localStorage.setItem('cueCardAppData', JSON.stringify(dataToSave));
+        }
+
+        // Listen for changes in the cover inputs
+        coverTitleInput.addEventListener('input', saveData);
+        coverAuthorInput.addEventListener('input', saveData);
+
+        // Generate a unique ID
+        function generateId() {
+            return Math.random().toString(36).substr(2, 9);
+        }
+
+        function addSlide(data = null) {
+            if (data instanceof Event) data = null;
+
+            const id = data && data.id ? data.id : generateId();
+            const slideNumber = slideData.length + 1;
+            
+            const newSlide = {
+                id: id,
+                imageSrc: data ? data.imageSrc : null,
+                scriptText: data ? data.scriptText : '',
+                fileName: data ? data.fileName : ''
+            };
+            
+            if (!data) {
+                slideData.push(newSlide);
+                saveData(); 
+            }
+            renderSlideEditor(newSlide, slideNumber);
+        }
+
+        function renderSlideEditor(slide, index) {
+            const div = document.createElement('div');
+            div.className = 'slide-item bg-white rounded-lg shadow p-6 border border-gray-200';
+            div.dataset.id = slide.id;
+            
+            const fileNameDisplay = slide.fileName ? `<p class="text-xs text-gray-500 mt-1 truncate max-w-xs" title="${slide.fileName}">File: ${slide.fileName}</p>` : '';
+
+            div.innerHTML = `
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <div class="flex items-center">
+                        <input type="checkbox" class="slide-checkbox mr-3 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer">
+                        <i class="fas fa-grip-vertical text-gray-400 mr-3 drag-handle hover:text-gray-600" title="Drag to reorder"></i>
+                        <h3 class="text-lg font-medium text-gray-800">Page ${index}</h3>
+                    </div>
+                    <button class="delete-btn text-red-500 hover:text-red-700 transition" title="Delete this page">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+                <div class="flex flex-col md:flex-row gap-6">
+                    <!-- Left Side: Image Upload -->
+                    <div class="w-full md:w-1/2">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Left Page (Slide Image)</label>
+                        <div class="image-drop-zone mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md relative h-48 bg-gray-50 group hover:bg-gray-100 transition-colors duration-200">
+                            <div class="space-y-1 text-center flex flex-col justify-center items-center h-full w-full absolute inset-0 z-10 cursor-pointer image-upload-trigger ${slide.imageSrc ? 'hidden' : ''}">
+                                <i class="fas fa-image text-gray-400 text-3xl mb-2"></i>
+                                <div class="flex text-sm text-gray-600 justify-center">
+                                    <span class="relative bg-transparent rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
+                                        <span>Click or drag to upload image</span>
+                                    </span>
+                                </div>
+                                <p class="text-xs text-gray-500">PNG, JPG, GIF</p>
+                            </div>
+                            <input type="file" class="file-input hidden" accept="image/*">
+                            <img src="${slide.imageSrc || ''}" class="preview-image ${slide.imageSrc ? '' : 'hidden'} max-h-full max-w-full object-contain relative z-20 cursor-pointer" title="点击更换图片">
+                        </div>
+                        <div class="file-name-container">${fileNameDisplay}</div>
+                    </div>
+
+                    <!-- Right Side: Script Text -->
+                    <div class="w-full md:w-1/2 flex flex-col">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Right Page (Script)</label>
+                        <textarea class="script-input flex-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 mt-1 block w-full sm:text-sm border border-gray-300 rounded-md p-3 h-48 resize-y font-mono" placeholder="Paste script text here...">${slide.scriptText || ''}</textarea>
+                    </div>
+                </div>
+            `;
+
+            // Bind events
+            const fileInput = div.querySelector('.file-input');
+            const uploadTrigger = div.querySelector('.image-upload-trigger');
+            const previewImage = div.querySelector('.preview-image');
+            const scriptInput = div.querySelector('.script-input');
+            const deleteBtn = div.querySelector('.delete-btn');
+            const dropZone = div.querySelector('.image-drop-zone');
+            const fileNameContainer = div.querySelector('.file-name-container');
+            const checkbox = div.querySelector('.slide-checkbox');
+
+            // Listen for checkbox changes
+            checkbox.addEventListener('change', updateBatchUI);
+
+            const handleImageFile = (file) => {
+                if (file && file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        previewImage.src = e.target.result;
+                        previewImage.classList.remove('hidden');
+                        uploadTrigger.classList.add('hidden');
+                        fileNameContainer.innerHTML = `<p class="text-xs text-gray-500 mt-1 truncate max-w-xs" title="${file.name}">File: ${file.name}</p>`;
+                        
+                        // Update data model and save
+                        const currentSlide = slideData.find(s => s.id === slide.id);
+                        if (currentSlide) {
+                            currentSlide.imageSrc = e.target.result;
+                            currentSlide.fileName = file.name;
+                            saveData();
+                        }
+                    }
+                    reader.readAsDataURL(file);
+                } else {
+                    alert('Please upload a valid image file! ');
+                }
+            };
+
+            // Trigger file input on click
+            uploadTrigger.addEventListener('click', () => fileInput.click());
+            previewImage.addEventListener('click', () => fileInput.click());
+
+            fileInput.addEventListener('change', function(e) {
+                handleImageFile(e.target.files[0]);
+                fileInput.value = ''; // Allow re-uploading the same file if needed
+            });
+
+            // Support dragging images into the drop zone
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.add('border-indigo-500', 'bg-indigo-50');
+            });
+
+            dropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.remove('border-indigo-500', 'bg-indigo-50');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.remove('border-indigo-500', 'bg-indigo-50');
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleImageFile(e.dataTransfer.files[0]);
+                }
+            });
+
+            // Listen for script text input
+            scriptInput.addEventListener('input', function(e) {
+                const currentSlide = slideData.find(s => s.id === slide.id);
+                if (currentSlide) {
+                    currentSlide.scriptText = e.target.value;
+                    saveData();
+                }
+            });
+
+            // Handle deletion
+            deleteBtn.addEventListener('click', function() {
+                if (confirm('Are you sure you want to delete this slide?')) {
+                    div.remove();
+                    slideData = slideData.filter(s => s.id !== slide.id);
+                    updateSlideLabels();
+                    saveData();
+                    updateBatchUI();
+                }
+            });
+
+            container.appendChild(div);
+            updateBatchUI();
+        }
+
+        function updateSlideLabels() {
+            const items = container.querySelectorAll('.slide-item');
+            items.forEach((item, index) => {
+                const title = item.querySelector('h3');
+                title.textContent = `Page ${index + 1}`;
+            });
+        }
+
+        // Batch operation event listeners
+        selectAllCb.addEventListener('change', (e) => {
+            const isChecked = e.target.checked;
+            const checkboxes = container.querySelectorAll('.slide-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = isChecked;
+            });
+            updateBatchUI();
+        });
+
+        deleteSelectedBtn.addEventListener('click', () => {
+            const checkedBoxes = container.querySelectorAll('.slide-checkbox:checked');
+            if (checkedBoxes.length === 0) return;
+
+            if (confirm(`Are you sure you want to delete the selected ${checkedBoxes.length} pages?`)) {
+                // Collect IDs to delete
+                const idsToDelete = Array.from(checkedBoxes).map(cb => cb.closest('.slide-item').dataset.id);
+                
+                // Remove from data
+                slideData = slideData.filter(slide => !idsToDelete.includes(slide.id));
+                
+                // Remove from DOM
+                checkedBoxes.forEach(cb => cb.closest('.slide-item').remove());
+                
+                updateSlideLabels();
+                saveData();
+                updateBatchUI();
+            }
+        });
+
+        clearAllBtn.addEventListener('click', () => {
+            if (slideData.length === 0) return;
+            if (confirm('Warning: Are you sure you want to clear all pages? This action cannot be undone!')) {
+                container.innerHTML = '';
+                slideData = [];
+                saveData();
+                updateBatchUI();
+            }
+        });
+
+        // Innitialize SortableJS for drag-and-drop reordering
+        const sortable = new Sortable(container, {
+            handle: '.drag-handle', // Only allow dragging by the handle
+            animation: 150, // Animation speed in ms
+            ghostClass: 'sortable-ghost', // Class name for the drop placeholder
+            onEnd: function (evt) {
+                // evt.item: the dragged HTMLElement
+                const itemEl = evt.item;  // the current dragged element
+                const oldIndex = evt.oldIndex; // Old index within parent
+                const newIndex = evt.newIndex; // New index within parent
+
+                // If the position hasn't changed, do nothing
+                if (oldIndex === newIndex) return;
+
+                // Remove the item from the old position
+                const movedItem = slideData.splice(oldIndex, 1)[0];
+                // Add the item to the new position
+                slideData.splice(newIndex, 0, movedItem);
+
+                // Update labels and save new order
+                updateSlideLabels();
+                // Since the order has changed, we should save the new state
+                saveData();
+            },
+        });
+
+        /*
+         * 小册子排版逻辑 (A4 纵向 3 版切条模式)：
+         * 为了让翻开后永远是 左侧(偶数页)为图片，右侧(奇数页)为文本，
+         * 逻辑页顺序必须是：
+         * Page 1: 封面
+         * Page 2: PPT 1
+         * Page 3: 讲稿 1
+         * Page 4: PPT 2
+         * Page 5: 讲稿 2
+         * ... 并用空白页补齐 4 的倍数。
+         */
+        
+        function preparePrintLayout() {
+            const title = document.getElementById('cover-title').value || '未命名演讲稿';
+            const author = document.getElementById('cover-author').value || '';
+
+            // 1. Construct logical pages based on user data
+            let logicalPages = [];
+            
+            // Cover page (Page 1)
+            logicalPages.push({ type: 'cover', content: `<div class="text-center"><h1 class="text-2xl font-bold mb-4">${title}</h1><p class="text-lg text-gray-600">${author}</p></div>` });
+
+            // Traverse slide data to create logical pages (Page 2, 3, 4, 5...)
+            slideData.forEach((slide, index) => {
+                // Left side is the slide image (Page 2, 4, 6...)
+                logicalPages.push({ 
+                    type: 'image', 
+                    content: slide.imageSrc ? `<img src="${slide.imageSrc}" class="slide-img" />` : `<div class="text-gray-400">No image</div>`,
+                    pageNum: "PPT " + (index + 1)
+                });
+                // Right side is the script text (Page 3, 5, 7...)
+                logicalPages.push({ 
+                    type: 'text', 
+                    content: `<div class="script-text">${slide.scriptText || '(No Slide)'}</div>`,
+                    pageNum: "Script " + (index + 1)
+                });
+            });
+
+            // guarantee the total number of logical pages is a multiple of 4 by adding blank pages if necessary
+            while (logicalPages.length % 4 !== 0) {
+                logicalPages.push({ type: 'blank', content: '' });
+            }
+
+            const M = logicalPages.length;
+            const K = M / 4; // mini-steet needed for the booklet (each mini-sheet contains 4 logical pages)
+            const S = Math.ceil(K / 3); // paper number needed (each A4 paper can hold 3 mini-sheets)
+            
+            let printHtml = '';
+
+            // 2. Render pages in the order they should be printed, considering double-sided printing and folding
+            for (let s = 0; s < S; s++) {
+                // Front of A4
+                printHtml += `<div class="print-page portrait-page">`;
+                for (let r = 0; r < 3; r++) {
+                    let k = s * 3 + r; // Current mini-sheet index
+                    if (k < K) {
+                        let leftIndex = M - 1 - (k * 2);
+                        let rightIndex = k * 2;
+                        printHtml += `
+                            <div class="mini-sheet">
+                                <div class="print-half-page">
+                                    ${logicalPages[leftIndex].content}
+                                    ${getWatermark(logicalPages[leftIndex], leftIndex)}
+                                </div>
+                                <div class="print-half-page">
+                                    ${logicalPages[rightIndex].content}
+                                    ${getWatermark(logicalPages[rightIndex], rightIndex)}
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        // If there are no more mini-sheets, add an empty one to maintain layout
+                        printHtml += `<div class="mini-sheet" style="border-bottom: none;"></div>`;
+                    }
+                }
+                printHtml += `</div>`;
+
+                // Back of A4 (mirror order for double-sided printing)
+                printHtml += `<div class="print-page portrait-page">`;
+                for (let r = 0; r < 3; r++) {
+                    let k = s * 3 + r; // Current mini-sheet index
+                    if (k < K) {
+                        // Because double-sided printing flips along the long edge, physical positions will create left-right mirroring
+                        let leftIndex = k * 2 + 1;
+                        let rightIndex = M - 2 - (k * 2);
+                        printHtml += `
+                            <div class="mini-sheet">
+                                <div class="print-half-page">
+                                    ${logicalPages[leftIndex].content}
+                                    ${getWatermark(logicalPages[leftIndex], leftIndex)}
+                                </div>
+                                <div class="print-half-page">
+                                    ${logicalPages[rightIndex].content}
+                                    ${getWatermark(logicalPages[rightIndex], rightIndex)}
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        printHtml += `<div class="mini-sheet" style="border-bottom: none;"></div>`;
+                    }
+                }
+                printHtml += `</div>`;
+            }
+
+            return printHtml;
+        }
+
+        function getWatermark(pageData, index) {
+            if (pageData.type === 'blank') return '';
+            if (pageData.type === 'cover') return '<span class="page-number">封面</span>';
+            return `<span class="page-number">${pageData.pageNum || ''}</span>`;
+        }
+
+        printBtn.addEventListener('click', () => {
+            if (slideData.length === 0) {
+                alert('Please add at least one page before previewing or printing the brochure!');
+                return;
+            }
+
+            const printArea = document.getElementById('print-area');
+            
+            printBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Generating layout...';
+            printBtn.disabled = true;
+
+            setTimeout(() => {
+                printArea.innerHTML = preparePrintLayout();
+                
+                printArea.classList.remove('hidden');
+                
+                printBtn.innerHTML = '<i class="fas fa-print mr-2"></i> 预览/打印小册子';
+                printBtn.disabled = false;
+
+                window.print();
+
+                setTimeout(() => {
+                    printArea.classList.add('hidden');
+                    printArea.innerHTML = ''; 
+                }, 1000);
+            }, 100); 
+        });
+
+        importFolderBtn.addEventListener('click', () => {
+            folderInput.click();
+        });
+
+        folderInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            folderInput.value = ''; 
+            
+            if (files.length === 0) return;
+
+            let hasInvalidFormat = false;
+            let hasSubFolders = false;
+            const validImages = [];
+
+            for (let file of files) {
+                if (file.name.startsWith('.')) continue; 
+
+                const pathParts = file.webkitRelativePath.split('/');
+                if (pathParts.length > 2) {
+                    hasSubFolders = true;
+                    break;
+                }
+
+                // Must be an image file
+                if (!file.type.startsWith('image/')) {
+                    hasInvalidFormat = true;
+                    break;
+                }
+
+                validImages.push(file);
+            }
+
+            if (hasSubFolders) {
+                alert('Import failed! The folder contains subfolders. Please select the deepest folder that only contains images.');
+                return;
+            }
+
+            if (hasInvalidFormat) {
+                alert('Import failed! The folder contains files that are not in a supported image format. Please ensure the folder only contains supported image formats.');
+                return;
+            }
+
+            if (validImages.length === 0) {
+                alert('No valid image files found.');
+                return;
+            }
+
+
+            if (slideData.length > 0 && confirm('Do you want to clear all current pages and replace them with the newly imported images?\n\nClick "OK" to clear and replace.\nClick "Cancel" to append at the end of the existing list.')) {
+                container.innerHTML = '';
+                slideData = [];
+            }
+
+            validImages.forEach((file) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const newSlide = {
+                        id: generateId(),
+                        imageSrc: event.target.result,
+                        scriptText: '',
+                        fileName: file.name
+                    };
+                    slideData.push(newSlide);
+                    renderSlideEditor(newSlide, slideData.length);
+                    saveData(); 
+                    updateBatchUI();
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+
+        exportJsonBtn.addEventListener('click', async () => {
+            if (slideData.length === 0) {
+                alert("No data to export! Please add at least one page before exporting.");
+                return;
+            }
+
+            const originalText = exportJsonBtn.innerHTML;
+            exportJsonBtn.disabled = true;
+            exportJsonBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Packaging...';
+
+            try {
+                const zip = new JSZip();
+                const imagesFolder = zip.folder("images");
+                const exportSlides = [];
+
+                slideData.forEach(slide => {
+                    const exportSlide = {
+                        id: slide.id,
+                        scriptText: slide.scriptText,
+                        fileName: slide.fileName
+                    };
+
+                    if (slide.imageSrc && slide.imageSrc.startsWith('data:image')) {
+                        const dataParts = slide.imageSrc.split(',');
+                        const mimeType = dataParts[0].match(/:(.*?);/)[1];
+                        const b64Data = dataParts[1];
+                        
+                        const safeFileName = slide.fileName ? slide.fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_') : 'image.png';
+                        const imageZipPath = `${slide.id}_${safeFileName}`;
+                        
+                        imagesFolder.file(imageZipPath, b64Data, {base64: true});
+                        
+                        exportSlide.imageZipPath = `images/${imageZipPath}`;
+                        exportSlide.mimeType = mimeType;
+                    }
+                    exportSlides.push(exportSlide);
+                });
+
+                const dataToExport = {
+                    title: coverTitleInput.value,
+                    author: coverAuthorInput.value,
+                    slides: exportSlides
+                };
+
+                zip.file("data.json", JSON.stringify(dataToExport, null, 2));
+
+                const content = await zip.generateAsync({type: "blob"});
+                const url = URL.createObjectURL(content);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = (coverTitleInput.value || 'Cue Card Data') + '.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+            } catch (error) {
+                console.error("ZIP generation failed", error);
+                alert("Export failed! An error occurred while generating the ZIP file. Please try again.\n\nError details: " + error.message);
+            } finally {
+                exportJsonBtn.disabled = false;
+                exportJsonBtn.innerHTML = originalText;
+            }
+        });
+
+        importJsonBtn.addEventListener('click', () => {
+            zipInput.click();
+        });
+
+        zipInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            zipInput.value = ''; 
+            if (!file) return;
+
+            const originalText = importJsonBtn.innerHTML;
+            importJsonBtn.disabled = true;
+            importJsonBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Reading...';
+
+            try {
+                const zip = await JSZip.loadAsync(file);
+                const dataFile = zip.file("data.json");
+                
+                if (!dataFile) {
+                    throw new Error("Invalid ZIP file: data.json not found");
+                }
+
+                // Parse data.json to reconstruct the application state, including reading images from the ZIP and converting them back to Base64 for display
+                const dataStr = await dataFile.async("string");
+                const importedData = JSON.parse(dataStr);
+
+                if (importedData && Array.isArray(importedData.slides)) {
+                    coverTitleInput.value = importedData.title || '';
+                    coverAuthorInput.value = importedData.author || '';
+                    
+                    const newSlideData = [];
+                    
+                    for (const slide of importedData.slides) {
+                        const newSlide = {
+                            id: slide.id || generateId(),
+                            scriptText: slide.scriptText || '',
+                            fileName: slide.fileName || '',
+                            imageSrc: null
+                        };
+
+                        if (slide.imageZipPath) {
+                            const imgFile = zip.file(slide.imageZipPath);
+                            if (imgFile) {
+                                const b64 = await imgFile.async("base64");
+                                const mime = slide.mimeType || 'image/png';
+                                newSlide.imageSrc = `data:${mime};base64,${b64}`;
+                            }
+                        }
+                        newSlideData.push(newSlide);
+                    }
+
+                    container.innerHTML = '';
+                    slideData = newSlideData;
+                    slideData.forEach((slide, index) => {
+                        renderSlideEditor(slide, index + 1);
+                    });
+                    
+                    saveData();
+                    updateBatchUI();
+                    alert('ZIP data package imported successfully!');
+                } else {
+                    throw new Error("Invalid data.json format");
+                }
+            } catch (err) {
+                alert('Failed to parse ZIP file. Please ensure you have selected a file exported by this tool!\n\nError details: ' + err.message);
+                console.error(err);
+            } finally {
+                importJsonBtn.disabled = false;
+                importJsonBtn.innerHTML = originalText;
+            }
+        });
+
+        function init() {
+            addBtn.addEventListener('click', addSlide);
+            
+            const cachedDataStr = localStorage.getItem('cueCardAppData');
+            if (cachedDataStr) {
+                try {
+                    const cachedData = JSON.parse(cachedDataStr);
+                    if (cachedData && Array.isArray(cachedData.slides)) {
+                        coverTitleInput.value = cachedData.title || '';
+                        coverAuthorInput.value = cachedData.author || '';
+                        
+                        if (cachedData.slides.length > 0) {
+                            slideData = cachedData.slides;
+                            slideData.forEach((slide, index) => {
+                                renderSlideEditor(slide, index + 1);
+                            });
+                            updateBatchUI();
+                            return; // If valid cache is loaded, skip adding default slide
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to read cache', e);
+                }
+            }
+            
+            // If no valid cache is available, add a default slide
+            addSlide();
+        }
+
+        // 启动应用
+        init();
+
+    </script>
+</body>
+</html>
