@@ -1,5 +1,7 @@
 # Cue Card Booklet Generator
 
+Better using with a computer. 
+
 ## Star it if this little website really helps you. 
 
 This web-based tool is designed to effortlessly create foldable, dual-sided cue cards specifically formatted for A4 printing. It allows users to pair presentation slides (images) on the left side with corresponding speaker notes on the right. With an intuitive interface, you can drag and drop images, bulk-import folders, reorder pages, and export your entire workspace as a standalone ZIP file for easy backup and cross-device restoration.
