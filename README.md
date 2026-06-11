@@ -1,4 +1,4 @@
-# Cue Card Booklet Generator
+# Cue Card Maker
 
 Try it out with [Compatible Mode](https://hezsystemscorporation.github.io/Cue-Card-Maker/CueCardMaker.html) or [Beautified Mode](https://hezsystemscorporation.github.io/Cue-Card-Maker/CueCardMaker_pro.html). 
 
