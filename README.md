@@ -1,6 +1,6 @@
 # Cue Card Maker
 
-Try it out with [Compatible Mode](https://hezsystemscorporation.github.io/Cue-Card-Maker/CueCardMaker.html) or [Beautified Mode](https://hezsystemscorporation.github.io/Cue-Card-Maker/CueCardMaker_pro.html). 
+Try it out with [Compatible Mode](https://hezsystemscorporation.github.io/Cue-Card-Maker/CueCardMaker.html) or [Beautified Mode](https://hezsystemscorporation.github.io/Cue-Card-Maker/CueCardMaker_Pro.html). 
 
 Better using with a computer. **Star** it if this little website really helps you. 
 
