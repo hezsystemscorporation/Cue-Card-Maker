@@ -1,5 +1,7 @@
 # Cue Card Booklet Generator
 
+Try it out with ![Compatible Mode][https://hezsystemscorporation.github.io/Cue-Card-Maker/CueCardMaker_Pro.html]
+
 Better using with a computer. **Star** it if this little website really helps you. 
 
 This application is a specialized web tool designed for speakers, educators, and presenters to create cue card booklets from standard A4 paper. By allowing users to pair presentation slides with their corresponding speaker notes, it streamlines the preparation process. The core magic lies in its automated booklet imposition engine: simply add your slides in chronological order, and the app will calculate the complex print layout for you. Once printed double-sided (flip on long edge) with A4 Portrait and cut horizontally, the pages fold into a perfect mini-booklet where the visual slide always appears on the left page and the script on the right. This allows users to give speeches with carefully made booklets instead of large plain paper or just their phones, making it more elegant. 
